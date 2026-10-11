@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Luyện Nghe Chép Chính Tả - Dictation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Custom styles for specific UI elements */
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .diff-correct { color: #16a34a; font-weight: 600; }
+        .diff-missing { color: #dc2626; text-decoration: underline; text-decoration-style: dashed; font-weight: 600; background-color: #fee2e2; padding: 0 4px; border-radius: 4px; margin: 0 2px; }
+        .diff-extra { color: #6b7280; text-decoration: line-through; background-color: #e5e7eb; padding: 0 4px; border-radius: 4px; margin: 0 2px; opacity: 0.8; }
+        
+        /* Hide scrollbar for sentence list */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Smooth transition for UI elements */
+        .transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 300ms; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden text-gray-800">
+
+    <!-- Header Area -->
+    <header class="bg-white shadow-sm z-10 p-4 shrink-0 flex justify-between items-center">
+        <div>
+            <h1 class="text-xl md:text-2xl font-bold text-blue-600"><i class="fas fa-headphones-alt mr-2"></i>Luyện Nghe Chép Chính Tả</h1>
+            <p class="text-xs md:text-sm text-gray-500 mt-1">Video: This is one of the most amazing animals...</p>
+        </div>
+        <div class="text-right">
+            <div class="text-sm font-semibold text-gray-600">Điểm trung bình</div>
+            <div class="text-2xl font-bold text-green-500" id="avg-score">0%</div>
+        </div>
+    </header>
+
+    <!-- Progress Bar -->
+    <div class="h-1.5 w-full bg-gray-200 shrink-0">
+        <div id="progress-bar" class="h-1.5 bg-blue-500 w-0 transition-all duration-500 ease-out"></div>
+    </div>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+        
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="absolute inset-0 bg-white/90 z-50 flex flex-col items-center justify-center">
+            <i class="fas fa-spinner fa-spin text-4xl text-blue-500 mb-4"></i>
+            <p class="font-medium text-gray-600" id="loading-text">Đang tải Video và Dữ liệu...</p>
+        </div>
+
+        <!-- Left Column: Video & Settings -->
+        <section class="w-full md:w-1/3 lg:w-1/4 bg-gray-100 flex flex-col border-r border-gray-200">
+            <!-- Video Container -->
+            <div id="video-wrapper" class="w-full aspect-video bg-black relative shrink-0 transition-all duration-300">
+                <div id="player"></div>
+                <!-- Overlay to prevent direct interaction if needed -->
+                <div id="player-overlay" class="absolute inset-0 z-10 pointer-events-none"></div>
+            </div>
+            
+            <!-- Settings & Video Toggle -->
+            <div class="p-4 bg-white border-b border-gray-200 flex justify-between items-center shrink-0">
+                <button id="toggle-video-btn" class="text-sm font-medium text-gray-600 hover:text-blue-600 flex items-center">
+                    <i class="fas fa-eye-slash mr-2"></i> <span>Ẩn video</span>
+                </button>
+                <div class="flex items-center space-x-2">
+                    <label for="speed-select" class="text-sm text-gray-600"><i class="fas fa-tachometer-alt"></i></label>
+                    <select id="speed-select" class="text-sm border-gray-300 rounded p-1 outline-none bg-gray-50 focus:ring-2 focus:ring-blue-400">
+                        <option value="1">1.0x (Chuẩn)</option>
+                        <option value="0.75">0.75x (Chậm)</option>
+                        <option value="0.5">0.5x (Rất chậm)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Sentence List -->
+            <div class="flex-1 overflow-y-auto no-scrollbar bg-gray-50 p-2" id="sentence-list">
+                <!-- Auto generated items here -->
+            </div>
+            
+            <!-- Review Mode Toggle -->
+            <div class="p-3 bg-white border-t border-gray-200 shrink-0">
+                <label class="flex items-center space-x-2 cursor-pointer">
+                    <input type="checkbox" id="review-mode-toggle" class="form-checkbox h-4 w-4 text-blue-600 rounded">
+                    <span class="text-sm font-medium text-gray-700">Chỉ ôn tập câu sai</span>
+                </label>
+            </div>
+        </section>
+
+        <!-- Right Column: Dictation Workspace -->
+        <section class="flex-1 bg-white flex flex-col relative">
+            
+            <!-- Navigation -->
+            <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
+                <button id="prev-btn" class="p-2 text-gray-500 hover:text-blue-600 disabled:opacity-50 transition-colors">
+                    <i class="fas fa-chevron-left fa-lg"></i>
+                </button>
+                <div class="text-center">
+                    <span class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Câu hiện tại</span>
+                    <div class="text-lg font-bold text-gray-800" id="current-sentence-indicator">1 / --</div>
+                </div>
+                <button id="next-btn" class="p-2 text-gray-500 hover:text-blue-600 disabled:opacity-50 transition-colors">
+                    <i class="fas fa-chevron-right fa-lg"></i>
+                </button>
+            </div>
+
+            <!-- Main Input Area -->
+            <div class="flex-1 p-4 md:p-8 flex flex-col max-w-4xl mx-auto w-full">
+                
+                <!-- Playback Controls -->
+                <div class="flex justify-center items-center space-x-6 mb-8">
+                    <button id="play-btn" class="w-16 h-16 bg-blue-500 rounded-full text-white shadow-lg hover:bg-blue-600 hover:shadow-xl transition-all flex items-center justify-center disabled:opacity-50">
+                        <i class="fas fa-play text-2xl ml-1" id="play-icon"></i>
+                    </button>
+                    <button id="repeat-btn" class="w-12 h-12 bg-gray-100 rounded-full text-gray-600 shadow hover:bg-gray-200 transition-all flex items-center justify-center tooltip" title="Lặp lại (Ctrl+Space)">
+                        <i class="fas fa-redo-alt text-lg"></i>
+                    </button>
+                </div>
+
+                <!-- Textarea -->
+                <div class="relative w-full mb-6 shadow-sm rounded-xl border border-gray-200 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all">
+                    <textarea id="dictation-input" 
+                              class="w-full p-4 md:p-6 text-lg md:text-xl text-gray-700 bg-transparent resize-none outline-none placeholder-gray-300 leading-relaxed" 
+                              rows="4" 
+                              placeholder="Nhấn nút Play và gõ lại những gì bạn nghe được..."></textarea>
+                    
+                    <div class="bg-gray-50 px-4 py-2 flex justify-between items-center border-t border-gray-100">
+                        <div class="flex space-x-2">
+                            <button id="hint-btn" class="text-xs px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded-md hover:bg-yellow-200 font-medium transition-colors">
+                                <i class="far fa-lightbulb mr-1"></i> Gợi ý (Ctrl+H)
+                            </button>
+                            <button id="show-answer-btn" class="text-xs px-3 py-1.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 font-medium transition-colors">
+                                <i class="fas fa-eye mr-1"></i> Hiện đáp án
+                            </button>
+                        </div>
+                        <span class="text-xs text-gray-400">Ctrl+Enter để kiểm tra</span>
+                    </div>
+                </div>
+
+                <!-- Action Button -->
+                <button id="check-btn" class="w-full py-4 bg-green-500 hover:bg-green-600 text-white text-lg font-bold rounded-xl shadow-md transition-colors">
+                    KIỂM TRA
+                </button>
+
+                <!-- Result Area (Hidden initially) -->
+                <div id="result-area" class="hidden mt-8 p-6 bg-gray-50 rounded-xl border border-gray-200">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold text-gray-800">Kết quả</h3>
+                        <div id="accuracy-badge" class="px-3 py-1 text-sm font-bold rounded-full bg-blue-100 text-blue-700">100%</div>
+                    </div>
+                    
+                    <div id="diff-output" class="text-lg leading-relaxed text-gray-700 mb-6 bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+                        <!-- Diff content injected here -->
+                    </div>
+
+                    <div class="flex justify-between items-center">
+                        <div class="text-xs text-gray-500 space-x-3">
+                            <span class="inline-flex items-center"><span class="w-3 h-3 rounded-full bg-green-500 mr-1"></span> Đúng</span>
+                            <span class="inline-flex items-center"><span class="w-3 h-3 rounded-full bg-red-100 border border-red-300 mr-1"></span> Thiếu</span>
+                            <span class="inline-flex items-center"><span class="w-3 h-3 rounded-full bg-gray-200 mr-1"></span> Thừa</span>
+                        </div>
+                        <button id="continue-btn" class="px-5 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium shadow-sm transition-colors">
+                            Câu tiếp theo <i class="fas fa-arrow-right ml-1"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Keyboard Shortcuts Info -->
+            <div class="p-3 text-center text-xs text-gray-400 bg-white border-t border-gray-100 mt-auto">
+                Phím tắt: <kbd class="px-1 py-0.5 bg-gray-100 border rounded">Ctrl + Space</kbd> Phát/Dừng | <kbd class="px-1 py-0.5 bg-gray-100 border rounded">Ctrl + &larr;/&rarr;</kbd> Chuyển câu | <kbd class="px-1 py-0.5 bg-gray-100 border rounded">Ctrl + Enter</kbd> Kiểm tra
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // 1. Raw Transcript Data Definition
+        const rawTranscript = `00:00:00.000 No text
+00:00:12.680 This is one of the most amazing animals on the face of the Earth.
+00:00:18.840 This is a tapir.
+00:00:20.960 Now this, this is a baby tapir,
+00:00:24.640 the cutest animal offspring in the animal kingdom.
+00:00:28.600 (Laughter)
+00:00:30.000 By far.
+00:00:31.600 There is no competition here.
+00:00:35.520 I have dedicated the past 20 years of my life
+00:00:38.240 to the research and conservation of tapirs in Brazil,
+00:00:41.440 and it has been absolutely amazing.
+00:00:45.160 But at the moment, I've been thinking really, really hard
+00:00:48.680 about the impact of my work.
+00:00:51.120 I've been questioning myself about the real contributions I have made
+00:00:55.240 for the conservation of these animals I love so much.
+00:00:58.800 Am I being effective
+00:01:00.680 in safeguarding their survival?
+00:01:03.680 Am I doing enough?
+00:01:06.040 I guess the big question here is,
+00:01:08.360 am I studying tapirs and contributing to their conservation,
+00:01:13.760 or am I just documenting their extinction?
+00:01:17.000 No text
+00:01:17.760 The world is facing so many different conservation crises.
+00:01:21.720 We all know that. It's all over the news every day.
+00:01:25.080 Tropical forests and other ecosystems are being destroyed,
+00:01:29.400 climate change, so many species on the brink of extinction:
+00:01:33.680 tigers, lions, elephants, rhinos, tapirs.
+00:01:40.240 This is the lowland tapir, the tapir species I work with,
+00:01:43.960 the largest terrestrial mammal of South America.
+00:01:47.120 They're massive. They're powerful.
+00:01:49.680 Adults can weigh up to 300 kilos.
+00:01:52.240 That's half the size of a horse.
+00:01:54.360 They're gorgeous.
+00:01:56.200 Tapirs are mostly found in tropical forests such as the Amazon,
+00:02:01.120 and they absolutely need large patches of habitat
+00:02:05.600 in order to find all the resources they need to reproduce and survive.
+00:02:11.160 But their habitat is being destroyed,
+00:02:14.120 and they have been hunted out of several parts of their geographic distribution.
+00:02:19.640 And you see, this is very, very unfortunate
+00:02:23.400 because tapirs are extremely important for the habitats where they are found.
+00:02:27.800 They're herbivores.
+00:02:29.200 Fifty percent of their diet consists of fruit,
+00:02:32.560 and when they eat the fruit, they swallow the seeds,
+00:02:35.480 which they disperse throughout the habitat through their feces.
+00:02:39.120 They play this major role in shaping and maintaining
+00:02:43.680 the structure and diversity of the forest,
+00:02:47.160 and for that reason, tapirs are known as gardeners of the forest.
+00:02:53.000 No text
+00:02:53.320 Isn't that amazing?
+00:02:55.080 If you think about it,
+00:02:56.920 the extinction of tapirs would seriously affect
+00:03:00.000 biodiversity as a whole.
+00:03:02.920 I started my tapir work in 1996, still very young, fresh out of college,
+00:03:08.840 and it was a pioneer research and conservation program.
+00:03:12.200 At that point, we had nearly zero information about tapirs,
+00:03:15.560 mostly because they're so difficult to study.
+00:03:18.880 They're nocturnal, solitary, very elusive animals,
+00:03:23.440 and we got started getting very basic data about these animals.
+00:03:28.640 But what is it that a conservationist does?
+00:03:32.520 Well, first, we need data.
+00:03:34.800 We need field research.
+00:03:36.400 We need those long-term datasets to support conservation action,
+00:03:41.040 and I told you tapirs are very hard to study,
+00:03:44.080 so we have to rely on indirect methods to study them.
+00:03:48.040 We have to capture and anesthetize them
+00:03:50.760 so that we can install GPS collars around their necks
+00:03:54.240 and follow their movements,
+00:03:55.920 which is a technique used by many other conservationists around the world.
+00:04:00.360 And then we can gather information about how they use space,
+00:04:04.320 how they move through the landscape,
+00:04:06.400 what are their priority habitats,
+00:04:08.400 and so much more.
+00:04:10.480 Next, we must disseminate what we learn.
+00:04:14.440 We have to educate people about tapirs
+00:04:17.160 and how important these animals are.
+00:04:19.800 And it's amazing how many people around the world
+00:04:23.440 do not know what a tapir is.
+00:04:26.280 In fact, many people think this is a tapir.
+00:04:30.920 Let me tell you, this is not a tapir.
+00:04:33.440 (Laughter)
+00:04:34.880 This is a giant anteater.
+00:04:36.840 Tapirs do not eat ants. Never. Ever.
+00:04:42.440 And then next we have to provide training, capacity building.
+00:04:47.200 It is our responsibility to prepare the conservationists of the future.
+00:04:51.680 We are losing several conservation battles,
+00:04:54.760 and we need more people doing what we do,
+00:04:57.240 and they need the skills, and they need the passion to do that.
+00:05:01.640 Ultimately, we conservationists,
+00:05:04.200 we must be able to apply our data,
+00:05:06.840 to apply our accumulated knowledge
+00:05:09.080 to support actual conservation action.
+00:05:12.000 No text
+00:05:13.040 Our first tapir program
+00:05:15.040 took place in the Atlantic Forest
+00:05:17.320 in the eastern part of Brazil,
+00:05:19.480 one of the most threatened biomes in the world.
+00:05:22.880 The destruction of the Atlantic Forest
+00:05:25.080 began in the early 1500s,
+00:05:27.320 when the Portuguese first arrived in Brazil,
+00:05:30.120 beginning European colonization in the eastern part of South America.
+00:05:34.560 This forest was almost completely cleared
+00:05:37.880 for timber, agriculture, cattle ranching and the construction of cities,
+00:05:43.120 and today only seven percent of the Atlantic forest
+00:05:46.600 is still left standing.
+00:05:48.800 And tapirs are found in very, very small, isolated, disconnected populations.
+00:05:55.200 In the Atlantic Forest, we found out that tapirs move through open areas
+00:05:59.880 of pastureland and agriculture
+00:06:02.240 going from one patch of forest to patch of forest.
+00:06:06.480 So our main approach in this region
+00:06:09.040 was to use our tapir data to identify the potential places
+00:06:13.440 for the establishment of wildlife corridors
+00:06:16.440 in between those patches of forest,
+00:06:19.120 reconnecting the habitat
+00:06:21.200 so that tapirs and many other animals could cross the landscape safely.
+00:06:25.960 After 12 years in the Atlantic Forest,
+00:06:28.720 in 2008, we expanded our tapir conservation efforts to the Pantanal
+00:06:33.760 in the western part of Brazil
+00:06:35.760 near the border with Bolivia and Paraguay.
+00:06:39.160 This is the largest continuous freshwater floodplain in the world,
+00:06:44.600 an incredible place
+00:06:46.080 and one of the most important strongholds for lowland tapirs in South America.
+00:06:50.760 And working in the Pantanal has been extremely refreshing
+00:06:55.280 because we found large, healthy tapir populations in the area,
+00:06:59.280 and we have been able to study tapirs
+00:07:01.240 in the most natural conditions we'll ever find,
+00:07:05.000 very much free of threats.
+00:07:08.280 In the Pantanal, besides the GPS collars, we are using another technique:
+00:07:13.000 camera traps.
+00:07:14.240 This camera is equipped with a movement sensor
+00:07:17.160 and it photographs animals when they walk in front of it.
+00:07:20.200 So thanks to these amazing devices,
+00:07:22.680 we have been able to gather precious information
+00:07:25.920 about tapir reproduction and social organization
+00:07:28.880 which are very important pieces of the puzzle
+00:07:31.440 when you're trying to develop those conservation strategies.
+00:07:35.560 And right now, 2015, we are expanding our work once again
+00:07:40.280 to the Brazilian Cerrado,
+00:07:42.160 the open grasslands and shrub forests in the central part of Brazil.
+00:07:46.360 Today this region is the very epicenter of economic development in my country,
+00:07:53.280 where natural habitat and wildlife populations
+00:07:56.000 are rapidly being eradicated by several different threats,
+00:07:00.120 including once again cattle ranching,
+00:08:02.720 large sugarcane and soybean plantations,
+00:08:05.480 poaching, roadkill, just to name a few.
+00:08:09.000 And somehow, tapirs are still there,
+00:08:12.640 which gives me a lot of hope.
+00:08:15.080 But I have to say that starting this new program in the Cerrado
+00:08:19.600 was a bit of a slap in the face.
+00:08:22.480 When you drive around
+00:08:23.960 and you find dead tapirs along the highways
+00:08:27.800 and signs of tapirs wandering around in the middle of sugarcane plantations
+00:08:32.840 where they shouldn't be,
+00:08:34.880 and you talk to kids and they tell you that they know how tapir meat tastes
+00:08:39.120 because their families poach and eat them,
+00:08:42.520 it really breaks your heart.
+00:08:45.000 No text
+00:08:46.039 The situation in the Cerrado made me realize --
+00:08:49.280 it gave me the sense of urgency.
+00:08:52.240 I am swimming against the tide.
+00:08:54.559 It made me realize that despite two decades of hard work
+00:08:58.240 trying to save these animals, we still have so much work to do
+00:09:01.800 if we are to prevent them from disappearing.
+00:09:04.880 We have to find ways to solve all these problems.
+00:09:08.840 We really do, and you know what?
+00:09:10.720 We really came to a point in the conservation world
+00:09:14.160 where we have to think out of the box.
+00:09:16.920 We'll have to be a lot more creative than we are right now.
+00:09:20.680 And I told you, roadkill is a big problem for tapirs in the Cerrado,
+00:09:24.600 so we just came up with the idea of putting reflective stickers
+00:09:28.040 on the GPS collars we put on the tapirs.
+00:09:30.880 These are the same stickers used on big trucks
+00:09:33.240 to avoid collision.
+00:09:34.880 Tapirs cross the highways after dark,
+00:09:38.120 so the stickers will hopefully help drivers see this shining thing
+00:09:43.320 crossing the highway,
+00:09:44.760 and maybe they will slow down a little bit.
+00:09:48.320 For now, this is just a crazy idea.
+00:09:50.920 We don't know. We'll see if it will reduce the amount of tapir roadkill.
+00:09:55.600 But the point is, maybe this is the kind of stuff that needs to be done.
+00:10:00.920 And although I'm struggling with all these questions
+00:10:04.680 in my mind right now,
+00:10:07.480 I have a pact with tapirs.
+00:10:10.400 I know in my heart
+00:10:12.160 that tapir conservation is my cause.
+00:10:15.120 This is my passion.
+00:10:16.840 I am not alone.
+00:10:18.400 I have this huge network of supporters behind me,
+00:10:22.160 and there is no way I'm ever going to stop.
+00:10:25.200 I will continue doing this, most probably for the rest of my life.
+00:10:29.600 And I'll keep doing this for Patrícia, my namesake,
+00:10:33.920 one of the first tapirs we captured and monitored in the Atlantic Forest
+00:10:37.720 many, many years ago;
+00:10:39.840 for Rita and her baby Vincent in the Pantanal.
+00:10:44.400 And I'll keep doing this for Ted, a baby tapir we captured
+00:10:48.520 in December last year also in the Pantanal.
+00:10:51.960 And I will keep doing this
+00:10:54.080 for the hundreds of tapirs that I've had the pleasure to meet
+00:10:57.760 over the years
+00:10:59.000 and the many others I know I will encounter in the future.
+00:11:02.560 These animals deserve to be cared for.
+00:11:05.920 They need me. They need us.
+00:11:08.920 And you know? We human beings deserve to live in a world
+00:11:13.920 where we can get out there and see and benefit from
+00:11:17.840 not only tapirs
+00:11:19.520 but all the other beautiful species,
+00:11:22.360 now and in the future.
+00:11:25.200 Thank you so much.
+00:11:27.320 (Applause)`;
+
+        // Parser function to convert raw text to structured sentences
+        function parseTranscript(raw) {
+            const lines = raw.split('\n');
+            const data = [];
+            const timeRegex = /^(\d{2}):(\d{2}):(\d{2})\.(\d{3})\s+(.*)/;
+
+            let tempData = [];
+            for (let line of lines) {
+                const match = line.match(timeRegex);
+                if (match) {
+                    const h = parseInt(match[1]), m = parseInt(match[2]), s = parseInt(match[3]), ms = parseInt(match[4]);
+                    const timeInSeconds = h * 3600 + m * 60 + s + ms / 1000;
+                    const text = match[5].trim();
+                    if (text !== "No text" && !text.startsWith("(")) { // Ignore "No text" and tags like (Laughter)
+                        tempData.push({ start: timeInSeconds, text: text, end: 0 });
+                    }
+                }
+            }
+
+            // Calculate end times based on next segment start
+            for (let i = 0; i < tempData.length - 1; i++) {
+                tempData[i].end = tempData[i + 1].start;
+            }
+            if (tempData.length > 0) {
+                tempData[tempData.length - 1].end = tempData[tempData.length - 1].start + 3; // Fallback for last item
+            }
+
+            // Merge short segments to make dictation chunks reasonable (aim for 5-10s chunks)
+            let mergedData = [];
+            let currentChunk = null;
+            
+            for (let item of tempData) {
+                if (!currentChunk) {
+                    currentChunk = { ...item };
+                } else {
+                    let duration = item.end - currentChunk.start;
+                    // If current chunk is too short (< 4s) or text is too short, merge with next
+                    if (duration < 5 || currentChunk.text.split(' ').length < 5) {
+                        currentChunk.text += " " + item.text;
+                        currentChunk.end = item.end;
+                    } else {
+                        mergedData.push(currentChunk);
+                        currentChunk = { ...item };
+                    }
+                }
+            }
+            if (currentChunk) mergedData.push(currentChunk);
+
+            // Assign IDs and initialize state tracking
+            return mergedData.map((item, index) => ({
+                id: index,
+                start: item.start,
+                end: item.end,
+                text: item.text,
+                score: null,
+                isMistake: false,
+                hintsUsed: 0
+            }));
+        }
+
+        const sentences = parseTranscript(rawTranscript);
+
+        // Application State
+        const VIDEO_ID = 'RbNqU2K0qzo';
+        let player;
+        let currentSentenceIndex = 0;
+        let isPlayingSegment = false;
+        let checkPlaybackInterval = null;
+        let reviewMode = false;
+        let activeList = [...Array(sentences.length).keys()]; // Array of indices
+
+        // DOM Elements
+        const DOM = {
+            loadingOverlay: document.getElementById('loading-overlay'),
+            loadingText: document.getElementById('loading-text'),
+            videoWrapper: document.getElementById('video-wrapper'),
+            toggleVideoBtn: document.getElementById('toggleVideo-btn'), // Fixed ID below
+            sentenceList: document.getElementById('sentence-list'),
+            prevBtn: document.getElementById('prev-btn'),
+            nextBtn: document.getElementById('next-btn'),
+            playBtn: document.getElementById('play-btn'),
+            playIcon: document.getElementById('play-icon'),
+            repeatBtn: document.getElementById('repeat-btn'),
+            dictationInput: document.getElementById('dictation-input'),
+            checkBtn: document.getElementById('check-btn'),
+            resultArea: document.getElementById('result-area'),
+            diffOutput: document.getElementById('diff-output'),
+            accuracyBadge: document.getElementById('accuracy-badge'),
+            continueBtn: document.getElementById('continue-btn'),
+            currentIndicator: document.getElementById('current-sentence-indicator'),
+            progressBar: document.getElementById('progress-bar'),
+            avgScore: document.getElementById('avg-score'),
+            speedSelect: document.getElementById('speed-select'),
+            hintBtn: document.getElementById('hint-btn'),
+            showAnswerBtn: document.getElementById('show-answer-btn'),
+            reviewToggle: document.getElementById('review-mode-toggle'),
+            toggleVidBtn: document.getElementById('toggle-video-btn')
+        };
+
+        // Load YouTube IFrame API
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: '100%',
+                width: '100%',
+                videoId: VIDEO_ID,
+                playerVars: {
+                    'playsinline': 1,
+                    'controls': 0,
+                    'disablekb': 1,
+                    'fs': 0,
+                    'rel': 0,
+                    'modestbranding': 1
+                },
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange,
+                    'onError': onPlayerError
+                }
+            });
+        }
+
+        function onPlayerReady(event) {
+            DOM.loadingOverlay.classList.add('hidden');
+            initApp();
+        }
+
+        function onPlayerError(event) {
+            DOM.loadingText.innerHTML = "<span class='text-red-500'>Lỗi tải video. Video có thể đã bị chặn nhúng hoặc bị xóa.</span>";
+            DOM.loadingText.nextElementSibling?.remove(); // remove spinner
+        }
+
+        function onPlayerStateChange(event) {
+            if (event.data === YT.PlayerState.PLAYING) {
+                DOM.playIcon.classList.replace('fa-play', 'fa-pause');
+            } else {
+                DOM.playIcon.classList.replace('fa-pause', 'fa-play');
+            }
+        }
+
+        function playCurrentSegment() {
+            if (!player || typeof player.seekTo !== 'function') return;
+            
+            const currentObj = sentences[activeList[currentSentenceIndex]];
+            if (!currentObj) return;
+
+            // Clear previous interval if exists
+            if (checkPlaybackInterval) clearInterval(checkPlaybackInterval);
+
+            // Pause if already playing segment
+            if (isPlayingSegment && player.getPlayerState() === YT.PlayerState.PLAYING) {
+                player.pauseVideo();
+                isPlayingSegment = false;
+                return;
+            }
+
+            isPlayingSegment = true;
+            player.seekTo(currentObj.start, true);
+            player.playVideo();
+            
+            // Apply speed
+            player.setPlaybackRate(parseFloat(DOM.speedSelect.value));
+
+            // Monitor playback to stop at 'end'
+            checkPlaybackInterval = setInterval(() => {
+                const currentTime = player.getCurrentTime();
+                if (currentTime >= currentObj.end) {
+                    player.pauseVideo();
+                    clearInterval(checkPlaybackInterval);
+                    isPlayingSegment = false;
+                    DOM.dictationInput.focus();
+                }
+            }, 100);
+        }
+
+        function initApp() {
+            renderSentenceList();
+            updateUI();
+            setupEventListeners();
+        }
+
+        function updateUI() {
+            if (activeList.length === 0) {
+                DOM.currentIndicator.innerText = "0 / 0";
+                DOM.dictationInput.disabled = true;
+                DOM.dictationInput.placeholder = "Không có câu nào trong danh sách ôn tập.";
+                return;
+            }
+
+            DOM.dictationInput.disabled = false;
+            const actualIndex = activeList[currentSentenceIndex];
+            const currentObj = sentences[actualIndex];
+            
+            // Update Navigation
+            DOM.currentIndicator.innerText = `${currentSentenceIndex + 1} / ${activeList.length}`;
+            DOM.prevBtn.disabled = currentSentenceIndex === 0;
+            DOM.nextBtn.disabled = currentSentenceIndex === activeList.length - 1;
+
+            // Reset Workspace
+            DOM.dictationInput.value = '';
+            DOM.resultArea.classList.add('hidden');
+            DOM.checkBtn.classList.remove('hidden');
+            DOM.dictationInput.focus();
+            DOM.dictationInput.placeholder = "Nhấn nút Play và gõ lại những gì bạn nghe được...";
+
+            // Update List Selection
+            document.querySelectorAll('.sentence-item').forEach(el => el.classList.remove('bg-blue-100', 'border-blue-400', 'border-l-4'));
+            const activeEl = document.getElementById(`sentence-${actualIndex}`);
+            if (activeEl) {
+                activeEl.classList.add('bg-blue-100', 'border-blue-400', 'border-l-4');
+                activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            // Update Progress
+            updateProgress();
+        }
+
+        function renderSentenceList() {
+            DOM.sentenceList.innerHTML = '';
+            activeList.forEach((actualIndex, i) => {
+                const obj = sentences[actualIndex];
+                const div = document.createElement('div');
+                div.id = `sentence-${actualIndex}`;
+                div.className = `sentence-item p-3 mb-2 rounded border border-gray-200 bg-white cursor-pointer hover:bg-gray-50 transition-colors flex justify-between items-center`;
+                
+                let statusHtml = '';
+                if (obj.score !== null) {
+                    const color = obj.score >= 90 ? 'text-green-500' : (obj.score >= 50 ? 'text-yellow-500' : 'text-red-500');
+                    statusHtml = `<span class="text-xs font-bold ${color}">${obj.score}%</span>`;
+                }
+
+                div.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <span class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600 shrink-0">${actualIndex + 1}</span>
+                        <div class="text-sm font-medium text-gray-700 truncate w-32 ${obj.score !== null ? '' : 'blur-[4px] opacity-60'} select-none transition-all duration-500" title="${obj.score !== null ? obj.text : 'Chưa hoàn thành'}">
+                            ${obj.text}
+                        </div>
+                    </div>
+                    ${statusHtml}
+                `;
+                
+                div.addEventListener('click', () => {
+                    currentSentenceIndex = i;
+                    updateUI();
+                    playCurrentSegment();
+                });
+                
+                DOM.sentenceList.appendChild(div);
+            });
+        }
+
+        function updateProgress() {
+            let attempted = 0;
+            let totalScore = 0;
+            
+            sentences.forEach(s => {
+                if (s.score !== null) {
+                    attempted++;
+                    totalScore += s.score;
+                }
+            });
+
+            const progressPct = sentences.length > 0 ? (attempted / sentences.length) * 100 : 0;
+            DOM.progressBar.style.width = `${progressPct}%`;
+
+            if (attempted > 0) {
+                DOM.avgScore.innerText = `${Math.round(totalScore / attempted)}%`;
+            } else {
+                DOM.avgScore.innerText = "0%";
+            }
+        }
+
+        function checkAnswer() {
+            const actualIndex = activeList[currentSentenceIndex];
+            const currentObj = sentences[actualIndex];
+            const userInput = DOM.dictationInput.value.trim();
+            
+            if(!userInput && userInput !== "") {
+               // allow empty submit to see answer
+            }
+
+            // Cleanup function for comparison (remove punctuation, lowercase)
+            const cleanString = (str) => {
+                return str.toLowerCase().replace(/[^\w\s\']/g, '').split(/\s+/).filter(w => w.length > 0);
+            };
+
+            const expectedWords = cleanString(currentObj.text);
+            const actualWords = cleanString(userInput);
+
+            // Simple DP for Longest Common Subsequence (LCS) to align words
+            const dp = Array(expectedWords.length + 1).fill(null).map(() => Array(actualWords.length + 1).fill(0));
+            
+            for (let i = 1; i <= expectedWords.length; i++) {
+                for (let j = 1; j <= actualWords.length; j++) {
+                    if (expectedWords[i - 1] === actualWords[j - 1]) {
+                        dp[i][j] = dp[i - 1][j - 1] + 1;
+                    } else {
+                        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+                    }
+                }
+            }
+
+            // Backtrack to find alignment and generate diff
+            let i = expectedWords.length;
+            let j = actualWords.length;
+            const path = [];
+
+            while (i > 0 && j > 0) {
+                if (expectedWords[i - 1] === actualWords[j - 1]) {
+                    path.push({ type: 'match', word: expectedWords[i - 1] });
+                    i--; j--;
+                } else if (dp[i - 1][j] > dp[i][j - 1]) {
+                    path.push({ type: 'missing', word: expectedWords[i - 1] });
+                    i--;
+                } else {
+                    path.push({ type: 'extra', word: actualWords[j - 1] });
+                    j--;
+                }
+            }
+            while (i > 0) { path.push({ type: 'missing', word: expectedWords[i - 1] }); i--; }
+            while (j > 0) { path.push({ type: 'extra', word: actualWords[j - 1] }); j--; }
+            
+            path.reverse();
+
+            // Calculate score
+            const correctCount = path.filter(p => p.type === 'match').length;
+            const score = expectedWords.length > 0 ? Math.round((correctCount / expectedWords.length) * 100) : 0;
+            
+            currentObj.score = score;
+            currentObj.isMistake = score < 100;
+
+            // Generate HTML output
+            let htmlOutput = "";
+            let wordIndexExpected = 0;
+            const originalWordsArray = currentObj.text.split(/\s+/); // Try to preserve original casing/punctuation for correct words where possible
+
+            path.forEach(item => {
+                if (item.type === 'match') {
+                    // Find the original word that matches (heuristically)
+                    let origWord = item.word;
+                    if(originalWordsArray[wordIndexExpected] && cleanString(originalWordsArray[wordIndexExpected])[0] === item.word) {
+                        origWord = originalWordsArray[wordIndexExpected];
+                        wordIndexExpected++;
+                    }
+                    htmlOutput += `<span class="diff-correct">${origWord}</span> `;
+                } else if (item.type === 'missing') {
+                    htmlOutput += `<span class="diff-missing" title="Thiếu từ">${item.word}</span> `;
+                    wordIndexExpected++;
+                } else if (item.type === 'extra') {
+                    htmlOutput += `<span class="diff-extra" title="Từ thừa">${item.word}</span> `;
+                }
+            });
+
+            // Display results
+            DOM.diffOutput.innerHTML = htmlOutput;
+            DOM.accuracyBadge.innerText = `${score}%`;
+            
+            if(score === 100) {
+                DOM.accuracyBadge.className = "px-3 py-1 text-sm font-bold rounded-full bg-green-100 text-green-700";
+            } else if (score >= 50) {
+                DOM.accuracyBadge.className = "px-3 py-1 text-sm font-bold rounded-full bg-yellow-100 text-yellow-700";
+            } else {
+                DOM.accuracyBadge.className = "px-3 py-1 text-sm font-bold rounded-full bg-red-100 text-red-700";
+            }
+
+            DOM.resultArea.classList.remove('hidden');
+            DOM.checkBtn.classList.add('hidden');
+            
+            renderSentenceList(); // Re-render to unblur text and update score
+            DOM.continueBtn.focus();
+        }
+
+        function provideHint() {
+            const actualIndex = activeList[currentSentenceIndex];
+            const currentObj = sentences[actualIndex];
+            const expectedWords = currentObj.text.split(/\s+/);
+            const currentInputWords = DOM.dictationInput.value.trim().split(/\s+/).filter(w=>w);
+            
+            // Simple logic: find first word that doesn't match roughly
+            let errorIndex = -1;
+            for(let i=0; i<expectedWords.length; i++) {
+                const cleanExp = expectedWords[i].toLowerCase().replace(/[^\w\s\']/g, '');
+                const cleanInp = (currentInputWords[i] || "").toLowerCase().replace(/[^\w\s\']/g, '');
+                if (cleanExp !== cleanInp) {
+                    errorIndex = i;
+                    break;
+                }
+            }
+
+            if (errorIndex !== -1) {
+                const targetWord = expectedWords[errorIndex];
+                let hintStr = "";
+                
+                currentObj.hintsUsed++;
+                
+                if (currentObj.hintsUsed % 2 === 1) {
+                    // Level 1: First letter + blanks
+                    hintStr = targetWord[0] + targetWord.substring(1).replace(/[a-zA-Z]/g, '_');
+                } else {
+                    // Level 2: Whole word
+                    hintStr = targetWord;
+                }
+                
+                // Reconstruct input up to error point
+                let newInput = expectedWords.slice(0, errorIndex).join(" ");
+                if(newInput) newInput += " ";
+                newInput += hintStr + " ";
+                
+                DOM.dictationInput.value = newInput;
+                DOM.dictationInput.focus();
+            }
+        }
+
+        function setupEventListeners() {
+            // Playback controls
+            DOM.playBtn.addEventListener('click', playCurrentSegment);
+            DOM.repeatBtn.addEventListener('click', () => {
+                player.seekTo(sentences[activeList[currentSentenceIndex]].start, true);
+                if (!isPlayingSegment) playCurrentSegment();
+            });
+
+            // Navigation
+            DOM.prevBtn.addEventListener('click', () => {
+                if (currentSentenceIndex > 0) { currentSentenceIndex--; updateUI(); playCurrentSegment(); }
+            });
+            DOM.nextBtn.addEventListener('click', () => {
+                if (currentSentenceIndex < activeList.length - 1) { currentSentenceIndex++; updateUI(); playCurrentSegment(); }
+            });
+            DOM.continueBtn.addEventListener('click', () => {
+                if (currentSentenceIndex < activeList.length - 1) { 
+                    currentSentenceIndex++; 
+                    updateUI(); 
+                    playCurrentSegment(); 
+                } else {
+                    alert("Bạn đã hoàn thành danh sách!");
+                }
+            });
+
+            // Dictation actions
+            DOM.checkBtn.addEventListener('click', checkAnswer);
+            DOM.hintBtn.addEventListener('click', provideHint);
+            DOM.showAnswerBtn.addEventListener('click', () => {
+                DOM.dictationInput.value = sentences[activeList[currentSentenceIndex]].text;
+                checkAnswer(); // Auto check to show 100%
+            });
+
+            // Video Toggle
+            DOM.toggleVidBtn.addEventListener('click', () => {
+                if (DOM.videoWrapper.classList.contains('hidden')) {
+                    DOM.videoWrapper.classList.remove('hidden');
+                    DOM.toggleVidBtn.innerHTML = '<i class="fas fa-eye-slash mr-2"></i> <span>Ẩn video</span>';
+                } else {
+                    DOM.videoWrapper.classList.add('hidden');
+                    DOM.toggleVidBtn.innerHTML = '<i class="fas fa-eye mr-2"></i> <span>Hiện video</span>';
+                }
+            });
+
+            // Speed change
+            DOM.speedSelect.addEventListener('change', () => {
+                if (player && typeof player.setPlaybackRate === 'function') {
+                    player.setPlaybackRate(parseFloat(DOM.speedSelect.value));
+                }
+            });
+
+            // Review Mode Toggle
+            DOM.reviewToggle.addEventListener('change', (e) => {
+                reviewMode = e.target.checked;
+                if (reviewMode) {
+                    activeList = sentences.map((s, i) => s.isMistake ? i : -1).filter(i => i !== -1);
+                } else {
+                    activeList = [...Array(sentences.length).keys()];
+                }
+                currentSentenceIndex = 0;
+                renderSentenceList();
+                updateUI();
+            });
+
+            // Keyboard Shortcuts
+            document.addEventListener('keydown', (e) => {
+                // Ctrl + Space: Play/Pause/Repeat
+                if (e.ctrlKey && e.code === 'Space') {
+                    e.preventDefault();
+                    playCurrentSegment();
+                }
+                // Ctrl + Enter: Check
+                if (e.ctrlKey && e.code === 'Enter') {
+                    e.preventDefault();
+                    if (!DOM.resultArea.classList.contains('hidden')) {
+                         DOM.continueBtn.click();
+                    } else {
+                         checkAnswer();
+                    }
+                }
+                // Ctrl + H: Hint
+                if (e.ctrlKey && e.key.toLowerCase() === 'h') {
+                    e.preventDefault();
+                    provideHint();
+                }
+                // Ctrl + Arrow Left/Right: Nav
+                if (e.ctrlKey && e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    DOM.prevBtn.click();
+                }
+                if (e.ctrlKey && e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    DOM.nextBtn.click();
+                }
+            });
+        }
+    </script>
+</body>
+</html>
